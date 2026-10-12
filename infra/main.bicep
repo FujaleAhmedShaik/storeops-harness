@@ -191,7 +191,8 @@ var appEnvVars = concat(
     { name: 'TRUST_PROXY_HOPS', value: '1' }
     { name: 'JWT_SECRET', secretRef: 'jwt-secret' }
     { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
-    { name: 'SEED_DEMO_DATA', value: string(seedDemoData) }
+    // Not string(seedDemoData): that gives "True" (capital T), and the app only accepts "true" or "false".
+    { name: 'SEED_DEMO_DATA', value: seedDemoData ? 'true' : 'false' }
   ],
   seedDemoData ? [{ name: 'DEMO_PASSWORD', secretRef: 'demo-password' }] : []
 )
