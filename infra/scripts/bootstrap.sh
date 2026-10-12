@@ -3,6 +3,7 @@
 #   - resource groups for dev and prod
 #   - an Entra app registration + service principal for GitHub Actions (no client secret: OIDC federation)
 #   - federated credentials limited to this repository's dev / prod environments, main branch and pull requests
+#     (in both subject formats GitHub can issue: by name, and by numeric owner/repository id)
 #   - role assignments scoped to the two resource groups only (never the subscription)
 # Everything else (registry, key vault, container apps ...) is created by the infra pipeline from infra/main.bicep.
 #
@@ -54,11 +55,32 @@ add_federated_credential() { # name subject
       "{\"name\":\"$1\",\"issuer\":\"https://token.actions.githubusercontent.com\",\"subject\":\"$2\",\"audiences\":[\"api://AzureADTokenExchange\"]}" -o none
   fi
 }
-for env in "${ENVIRONMENTS[@]}"; do
-  add_federated_credential "github-env-$env" "repo:$REPO:environment:$env"
-done
-add_federated_credential "github-main" "repo:$REPO:ref:refs/heads/main"
-add_federated_credential "github-pull-request" "repo:$REPO:pull_request"
+add_subject_credentials() { # name-prefix subject-prefix
+  for env in "${ENVIRONMENTS[@]}"; do
+    add_federated_credential "$1env-$env" "$2:environment:$env"
+  done
+  add_federated_credential "${1}main" "$2:ref:refs/heads/main"
+  add_federated_credential "${1}pull-request" "$2:pull_request"
+}
+add_subject_credentials "github-" "repo:$REPO"
+
+# GitHub can put the numeric owner and repository ids in the OIDC subject (repo:OWNER@ID/REPO@ID:...). The token then
+# matches only a credential written the same way, so create both forms: whichever one GitHub presents will match.
+github_id() { # $1 = jq path (gh), $2 = sed expression (public API fallback)
+  if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
+    gh api "repos/$REPO" --jq "$1" 2>/dev/null
+  else
+    curl -fsS "https://api.github.com/repos/$REPO" 2>/dev/null | tr -d '\n ' | sed -n "$2"
+  fi
+}
+OWNER_ID="${GITHUB_OWNER_ID:-$(github_id '.owner.id' 's/.*"owner":{"login":"[^"]*","id":\([0-9]*\).*/\1/p')}"
+REPO_ID="${GITHUB_REPO_ID:-$(github_id '.id' 's/^{"id":\([0-9]*\),.*/\1/p')}"
+if [[ -n "$OWNER_ID" && -n "$REPO_ID" ]]; then
+  add_subject_credentials "github-id-" "repo:${REPO%%/*}@$OWNER_ID/${REPO#*/}@$REPO_ID"
+else
+  echo "WARNING: could not look up the GitHub owner/repository ids, so only the plain-name credentials exist."
+  echo "         If the pipeline later fails with AADSTS700213, re-run with GITHUB_OWNER_ID=<id> GITHUB_REPO_ID=<id> set."
+fi
 
 echo "==> Role assignments (resource-group scope only)"
 for env in "${ENVIRONMENTS[@]}"; do
