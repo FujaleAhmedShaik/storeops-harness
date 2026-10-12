@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+# Generated tool output at the repo root ONLY. The leading slash matters: an unanchored `reports/` would also
+# ignore src/reports/ and tests/reports/, which are the real reports module and its tests.
+/reports/
+.stryker-tmp/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+# Harness working files (active run only) - .harness/reviews/ is committed as the audit trail
+.harness/output/
+infra/*.arm.json
+
+learning/

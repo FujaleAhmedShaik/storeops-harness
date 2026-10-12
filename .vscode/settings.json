@@ -1,0 +1,15 @@
+{
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "files.encoding": "utf8",
+  "editor.formatOnSave": false,
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceVersion": false,
+  "search.exclude": {
+    "coverage": true,
+    "reports": true,
+    "dist": true,
+    ".stryker-tmp": true
+  }
+}

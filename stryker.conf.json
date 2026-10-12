@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "jest",
+  "jest": { "configFile": "jest.config.js" },
+  "checkers": ["typescript"],
+  "tsconfigFile": "tsconfig.json",
+  "mutate": ["src/**/*.service.ts", "src/shared/**/*.ts", "!src/**/*.ports.ts"],
+  "coverageAnalysis": "perTest",
+  "reporters": ["clear-text", "json", "html"],
+  "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
+  "htmlReporter": { "fileName": "reports/mutation/index.html" },
+  "thresholds": { "high": 90, "low": 80, "break": 75 },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true
+}
