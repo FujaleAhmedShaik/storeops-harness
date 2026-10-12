@@ -8,20 +8,24 @@ import type { UserProfile } from './staff.types';
 const INVALID_CREDENTIALS = 'Invalid email or password';
 
 export class StaffService {
-  /** Verified against when the email is unknown so response time does not reveal which emails exist. */
-  private readonly decoyHash: Promise<string>;
+  /** Created on first use (constructors must not start async work). */
+  private decoyHash: Promise<string> | undefined;
 
   constructor(
     private readonly users: UserRepository,
     private readonly tokens: TokenService,
-    cost: ScryptCost = STRONG_COST,
-  ) {
-    this.decoyHash = hashPassword('decoy-password-never-matches', cost);
+    private readonly cost: ScryptCost = STRONG_COST,
+  ) {}
+
+  /** Verified against when the email is unknown so response time does not reveal which emails exist. */
+  private decoy(): Promise<string> {
+    this.decoyHash ??= hashPassword('decoy-password-never-matches', this.cost);
+    return this.decoyHash;
   }
 
   async login(input: LoginInput): Promise<AuthToken> {
     const user = await this.users.findByEmail(input.email);
-    const stored = user?.passwordHash ?? (await this.decoyHash);
+    const stored = user?.passwordHash ?? (await this.decoy());
     const passwordMatches = await verifyPassword(input.password, stored);
     if (!user || !passwordMatches) {
       throw new UnauthorizedError(INVALID_CREDENTIALS);

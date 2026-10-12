@@ -84,9 +84,9 @@ describe('activities API', () => {
       const byStatus = await request(world.app).get('/api/activities?status=DONE').set(world.auth('manager1'));
       expect(byStatus.body.data).toEqual([]);
 
-      await request(world.app).get('/api/activities?limit=101').set(world.auth('manager1')).expect(400);
-      await request(world.app).get('/api/activities?status=BOGUS').set(world.auth('manager1')).expect(400);
-      await request(world.app).get('/api/activities?unknown=1').set(world.auth('manager1')).expect(400);
+      expect((await request(world.app).get('/api/activities?limit=101').set(world.auth('manager1'))).status).toBe(400);
+      expect((await request(world.app).get('/api/activities?status=BOGUS').set(world.auth('manager1'))).status).toBe(400);
+      expect((await request(world.app).get('/api/activities?unknown=1').set(world.auth('manager1'))).status).toBe(400);
     });
 
     it('lets a regional manager see every store', async () => {
@@ -108,7 +108,7 @@ describe('activities API', () => {
     });
 
     it('rejects non-uuid ids with 400', async () => {
-      await request(world.app).get('/api/activities/1').set(world.auth('manager1')).expect(400);
+      expect((await request(world.app).get('/api/activities/1').set(world.auth('manager1'))).status).toBe(400);
     });
   });
 
@@ -138,37 +138,37 @@ describe('activities API', () => {
 
     it('rejects an empty or unknown-field patch', async () => {
       const { body } = await createTask(world, programmeId, 'manager1', { title: 'Patch' });
-      await request(world.app).patch(`/api/activities/${body.id}`).set(world.auth('manager1')).send({}).expect(400);
-      await request(world.app).patch(`/api/activities/${body.id}`).set(world.auth('manager1')).send({ createdBy: 'x' }).expect(400);
+      expect((await request(world.app).patch(`/api/activities/${body.id}`).set(world.auth('manager1')).send({})).status).toBe(400);
+      expect((await request(world.app).patch(`/api/activities/${body.id}`).set(world.auth('manager1')).send({ createdBy: 'x' })).status).toBe(400);
     });
 
     it('returns 404 for another store', async () => {
       const { body } = await createTask(world, programmeId, 'manager1', { title: 'Guarded' });
-      await request(world.app).patch(`/api/activities/${body.id}`).set(world.auth('manager2')).send({ title: 'hijack' }).expect(404);
+      expect((await request(world.app).patch(`/api/activities/${body.id}`).set(world.auth('manager2')).send({ title: 'hijack' })).status).toBe(404);
     });
   });
 
   describe('DELETE /api/activities/:id', () => {
     it('lets the owner delete, then the activity is gone', async () => {
       const { body } = await createTask(world, programmeId, 'associate1', { title: 'Disposable' });
-      await request(world.app).delete(`/api/activities/${body.id}`).set(world.auth('associate1')).expect(204);
-      await request(world.app).get(`/api/activities/${body.id}`).set(world.auth('associate1')).expect(404);
+      expect((await request(world.app).delete(`/api/activities/${body.id}`).set(world.auth('associate1'))).status).toBe(204);
+      expect((await request(world.app).get(`/api/activities/${body.id}`).set(world.auth('associate1'))).status).toBe(404);
     });
 
     it('lets a store manager delete someone else\'s activity', async () => {
       const { body } = await createTask(world, programmeId, 'associate1', { title: 'Managed away' });
-      await request(world.app).delete(`/api/activities/${body.id}`).set(world.auth('manager1')).expect(204);
+      expect((await request(world.app).delete(`/api/activities/${body.id}`).set(world.auth('manager1'))).status).toBe(204);
     });
 
     it('forbids a non-owner below store manager and keeps the data', async () => {
       const { body } = await createTask(world, programmeId, 'manager1', { title: 'Protected' });
-      await request(world.app).delete(`/api/activities/${body.id}`).set(world.auth('associate1')).expect(403);
-      await request(world.app).get(`/api/activities/${body.id}`).set(world.auth('manager1')).expect(200);
+      expect((await request(world.app).delete(`/api/activities/${body.id}`).set(world.auth('associate1'))).status).toBe(403);
+      expect((await request(world.app).get(`/api/activities/${body.id}`).set(world.auth('manager1'))).status).toBe(200);
     });
 
     it('does not let another store\'s manager delete it', async () => {
       const { body } = await createTask(world, programmeId, 'manager1', { title: 'Cross-store' });
-      await request(world.app).delete(`/api/activities/${body.id}`).set(world.auth('manager2')).expect(404);
+      expect((await request(world.app).delete(`/api/activities/${body.id}`).set(world.auth('manager2'))).status).toBe(404);
     });
   });
 });

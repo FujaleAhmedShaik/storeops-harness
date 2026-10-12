@@ -69,7 +69,7 @@ describe('application shell', () => {
     });
 
     it.each(['', 'Basic abc', 'Bearer', 'Bearer not-a-jwt', 'bearer a.b.c'])('rejects malformed Authorization header %j', async (header) => {
-      await request(world.app).get('/api/alerts').set('Authorization', header).expect(401);
+      expect((await request(world.app).get('/api/alerts').set('Authorization', header)).status).toBe(401);
     });
 
     it('rejects a token signed with a different secret', async () => {
@@ -78,7 +78,7 @@ describe('application shell', () => {
         issuer: world.config.jwt.issuer,
         audience: world.config.jwt.audience,
       });
-      await request(world.app).get('/api/alerts').set('Authorization', `Bearer ${forged}`).expect(401);
+      expect((await request(world.app).get('/api/alerts').set('Authorization', `Bearer ${forged}`)).status).toBe(401);
     });
 
     it('rejects an expired token', async () => {
@@ -88,7 +88,7 @@ describe('application shell', () => {
         audience: world.config.jwt.audience,
         expiresIn: -60,
       });
-      await request(world.app).get('/api/alerts').set('Authorization', `Bearer ${expired}`).expect(401);
+      expect((await request(world.app).get('/api/alerts').set('Authorization', `Bearer ${expired}`)).status).toBe(401);
     });
   });
 
@@ -117,7 +117,7 @@ describe('application shell', () => {
     });
 
     it('rejects array-style query parameters (simple query parser)', async () => {
-      await request(world.app).get('/api/activities?status[]=DONE').set(world.auth('manager1')).expect(400);
+      expect((await request(world.app).get('/api/activities?status[]=DONE').set(world.auth('manager1'))).status).toBe(400);
     });
   });
 

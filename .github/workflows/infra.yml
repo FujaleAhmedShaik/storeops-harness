@@ -22,15 +22,20 @@ jobs:
     name: Validate and scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Compile Bicep to ARM (fails on any Bicep error)
-        run: az bicep build --file infra/main.bicep --outfile infra/main.arm.json
+        run: |
+          # Use the Bicep that the Azure CLI manages itself, not whatever copy the runner image happens to ship.
+          az config set bicep.use_binary_from_path=false
+          az bicep install
+          az bicep version
+          az bicep build --file infra/main.bicep --outfile infra/main.arm.json
       - name: Shell script lint
         run: |
           sudo apt-get install -y shellcheck >/dev/null
-          shellcheck infra/scripts/*.sh
+          shellcheck -x --source-path=SCRIPTDIR infra/scripts/*.sh
       - name: Checkov (skips and their reasons are in .checkov.yaml)
-        uses: bridgecrewio/checkov-action@v12
+        uses: bridgecrewio/checkov-action@29be5868bfa968f099ae80169f61f42887494b8f # v12.3133.0
         with:
           file: infra/main.arm.json
           config_file: .checkov.yaml
@@ -47,8 +52,8 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -75,8 +80,8 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -99,8 +104,8 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}

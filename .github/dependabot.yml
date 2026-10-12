@@ -8,11 +8,26 @@ updates:
     groups:
       dev-tooling:
         dependency-type: development
+    ignore:
+      # Held back on purpose; upgrade by hand, with the full quality gate, when the toolchain supports it.
+      # typescript 7: the typescript-eslint peer range does not allow it yet, so `npm ci` fails.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # @types/node must stay on the same major as the runtime image (Node 24).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # The runtime stage is distroless nodejs24; the build stage must be the same Node major.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]

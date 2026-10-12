@@ -1,0 +1,12 @@
+title = "StoreOps gitleaks configuration"
+
+[extend]
+useDefault = true
+
+# Azure built-in role definition IDs are public identifiers, not secrets. Their variable names ("...SecretsUser") make
+# the generic-api-key rule fire, so allow a GUID on a role* variable in the Bicep file only.
+[[allowlists]]
+description = "Azure built-in role definition IDs in infra/main.bicep"
+condition = "AND"
+paths = ['''infra/main\.bicep$''']
+regexes = ['''var role\w+ = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\'''']
