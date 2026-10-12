@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run verify)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run lint)",
+      "Bash(npm run arch)",
+      "Bash(npm run dup)",
+      "Bash(npm run test:coverage)",
+      "Bash(npm run harness:*)",
+      "Bash(npx jest *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .harness/tools/cli.ts guard"
+          }
+        ]
+      }
+    ]
+  }
+}

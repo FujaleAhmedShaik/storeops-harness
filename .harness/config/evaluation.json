@@ -1,0 +1,313 @@
+{
+  "version": 1,
+  "maxIterations": 3,
+  "thresholds": {
+    "pass": 90,
+    "conditionalPass": 75
+  },
+  "dimensions": [
+    {
+      "id": "architecture",
+      "name": "Architecture and module boundaries",
+      "weight": 35
+    },
+    {
+      "id": "correctness",
+      "name": "Correctness and test quality",
+      "weight": 35
+    },
+    {
+      "id": "security_quality",
+      "name": "Security and code quality",
+      "weight": 20
+    },
+    {
+      "id": "governance",
+      "name": "Contract and change hygiene",
+      "weight": 10
+    }
+  ],
+  "checks": [
+    {
+      "id": "ARCH-01",
+      "dimension": "architecture",
+      "kind": "auto",
+      "hard": true,
+      "runner": "cmd:npm run arch",
+      "title": "Module boundaries and layering (dependency-cruiser)",
+      "criterion": "`npm run arch` exits 0: no cross-module repository/service/internal imports, no layer skipping, no cycles, shared/ imports no module.",
+      "prevents": "Failure mode 1 (cross-module repository imports) and layer skipping",
+      "skill": "architecture-principles"
+    },
+    {
+      "id": "ARCH-02",
+      "dimension": "architecture",
+      "kind": "auto",
+      "hard": true,
+      "runner": "static:raw-error-throws",
+      "title": "No raw Error throws in src",
+      "criterion": "No `throw` or `reject` of a built-in Error type (with or without `new`, on one line or split across lines) anywhere in src/**/*.ts, and no class that extends a built-in Error type outside src/shared/errors.ts. All failures use an AppError subclass.",
+      "prevents": "Failure mode 2 (bypassing the typed AppError hierarchy)",
+      "skill": "architecture-principles"
+    },
+    {
+      "id": "ARCH-03",
+      "dimension": "architecture",
+      "kind": "auto",
+      "hard": true,
+      "runner": "static:reports-readonly",
+      "title": "Reports module is read-only",
+      "criterion": "Every method on src/reports/*.ports.ts starts with get/find/list/count/summarise/read: the reports module has no write path into other modules.",
+      "prevents": "Reports writing into activities, programmes or staff",
+      "skill": "architecture-principles"
+    },
+    {
+      "id": "ARCH-04",
+      "dimension": "architecture",
+      "kind": "llm",
+      "hard": true,
+      "title": "Cross-module side effects use the event bus",
+      "criterion": "Every state change that crosses a module boundary is raised with bus.emit(<typed event>) and handled by a subscriber. No module writes to, or calls a mutating method of, a sibling module. Evidence: the emit call and the subscriber, file:line. If the tools' \"What changed\" table shows the sprint changed nothing across modules (events, ports, wiring), PASS with evidence that names the changed files (for example \"no routes or schemas changed: only src/x/x.service.ts and its test\"). That is the correct answer, not leniency.",
+      "prevents": "Failure mode 4 (missing event-bus integration, direct writes to sibling modules)",
+      "skill": "architecture-principles"
+    },
+    {
+      "id": "ARCH-05",
+      "dimension": "architecture",
+      "kind": "llm",
+      "hard": false,
+      "title": "Layer responsibilities respected",
+      "criterion": "Routes only parse, call one service method and respond; services hold business rules; repositories hold data access only and make no external or HTTP calls.",
+      "prevents": "Business logic leaking into routes or repositories",
+      "skill": "architecture-principles"
+    },
+    {
+      "id": "ARCH-06",
+      "dimension": "architecture",
+      "kind": "llm",
+      "hard": false,
+      "title": "Ports and events follow the wiring pattern",
+      "criterion": "New cross-module reads are a port declared by the consumer and wired in src/app.ts; new events are typed in src/shared/events.ts. If the tools' \"What changed\" table shows the sprint changed nothing in ports, events or wiring, PASS with evidence that names the changed files (for example \"no routes or schemas changed: only src/x/x.service.ts and its test\"). That is the correct answer, not leniency.",
+      "prevents": "Ad-hoc coupling and untyped events",
+      "skill": "feature-playbook"
+    },
+    {
+      "id": "COR-01",
+      "dimension": "correctness",
+      "kind": "auto",
+      "hard": true,
+      "runner": "cmd:npm run typecheck",
+      "title": "Type check",
+      "criterion": "`tsc --noEmit` reports 0 errors (strict mode, noUncheckedIndexedAccess).",
+      "prevents": "Type errors reaching main",
+      "skill": "coding-conventions"
+    },
+    {
+      "id": "COR-02",
+      "dimension": "correctness",
+      "kind": "auto",
+      "hard": true,
+      "runner": "jest:tests",
+      "title": "All tests pass",
+      "criterion": "Jest reports 0 failed tests and 0 failed suites.",
+      "prevents": "Regressions",
+      "skill": "how-to-test"
+    },
+    {
+      "id": "COR-03",
+      "dimension": "correctness",
+      "kind": "auto",
+      "hard": true,
+      "runner": "jest:coverage",
+      "title": "Coverage thresholds (90%)",
+      "criterion": "Jest exits 0 with the coverage thresholds in jest.config.js: >= 90% lines, branches, functions and statements globally, per *.service.ts, per *.routes.ts and in src/shared.",
+      "prevents": "Untested code",
+      "skill": "how-to-test"
+    },
+    {
+      "id": "COR-04",
+      "dimension": "correctness",
+      "kind": "llm",
+      "hard": true,
+      "title": "Tests assert business outcomes, not just status codes",
+      "criterion": "Every acceptance criterion in the sprint contract has at least one test, named with its AC id, that asserts the business outcome: stored state, emitted event, rule error code or response body. A test asserting only an HTTP status does not count. Evidence: AC id -> test file:line -> the asserting expression.",
+      "prevents": "Failure mode 3 (tests that assert status codes but not business rules)",
+      "skill": "how-to-test"
+    },
+    {
+      "id": "COR-05",
+      "dimension": "correctness",
+      "kind": "llm",
+      "hard": false,
+      "title": "Implementation satisfies every acceptance criterion, including negative paths",
+      "criterion": "Tracing each GIVEN/WHEN/THEN through the code finds the behaviour implemented, including the failure and permission cases the criteria name.",
+      "prevents": "Criteria silently unmet",
+      "skill": "sprint-decomposition"
+    },
+    {
+      "id": "SEC-01",
+      "dimension": "security_quality",
+      "kind": "auto",
+      "hard": true,
+      "runner": "cmd:npm run lint",
+      "title": "Lint and security rules",
+      "criterion": "ESLint (typescript-eslint strict + eslint-plugin-security) reports 0 errors and 0 warnings.",
+      "prevents": "Insecure or non-idiomatic code",
+      "skill": "coding-conventions"
+    },
+    {
+      "id": "SEC-02",
+      "dimension": "security_quality",
+      "kind": "auto",
+      "hard": true,
+      "runner": "cmd:npm run audit:deps",
+      "title": "No high or critical dependency vulnerabilities",
+      "criterion": "`npm audit --omit=dev --audit-level=high` exits 0.",
+      "prevents": "Vulnerable dependencies",
+      "skill": "coding-conventions"
+    },
+    {
+      "id": "SEC-03",
+      "dimension": "security_quality",
+      "kind": "auto",
+      "hard": false,
+      "runner": "cmd:npm run dup",
+      "title": "Duplication within budget",
+      "criterion": "jscpd reports <= 3% duplicated code in src.",
+      "prevents": "Copy-paste debt",
+      "skill": "coding-conventions"
+    },
+    {
+      "id": "SEC-04",
+      "dimension": "security_quality",
+      "kind": "llm",
+      "hard": true,
+      "title": "All new inputs are strictly validated and bounded",
+      "criterion": "Every new or changed route validates body, query and params with a zod strictObject (unknown fields rejected); ids are z.uuid(); every list endpoint uses paginationShape (limit <= 100). Evidence: schema and route file:line per input. If the tools' \"What changed\" table shows the sprint changed nothing in routes or schemas, PASS with evidence that names the changed files (for example \"no routes or schemas changed: only src/x/x.service.ts and its test\"). That is the correct answer, not leniency.",
+      "prevents": "Injection, mass assignment and unbounded responses (OWASP A03, API3, API4)",
+      "skill": "coding-conventions"
+    },
+    {
+      "id": "SEC-05",
+      "dimension": "security_quality",
+      "kind": "llm",
+      "hard": false,
+      "title": "Object-level authorisation and role checks",
+      "criterion": "By-id access resolves through store scoping and returns NotFound across stores; role rules live in the service and are tested. If the tools' \"What changed\" table shows the sprint changed nothing that reads, returns or authorises data (services, routes, repositories), PASS with evidence that names the changed files (for example \"no routes or schemas changed: only src/x/x.service.ts and its test\"). That is the correct answer, not leniency.",
+      "prevents": "Broken access control (OWASP A01, API1, API5)",
+      "skill": "coding-conventions"
+    },
+    {
+      "id": "SEC-06",
+      "dimension": "security_quality",
+      "kind": "llm",
+      "hard": false,
+      "title": "No sensitive data in logs, responses or errors",
+      "criterion": "No credentials, tokens, password hashes or internal error details are logged or returned. If the tools' \"What changed\" table shows the sprint changed nothing that logs, returns or formats output (services, routes, error handling), PASS with evidence that names the changed files (for example \"no routes or schemas changed: only src/x/x.service.ts and its test\"). That is the correct answer, not leniency.",
+      "prevents": "Information disclosure (OWASP A09)",
+      "skill": "coding-conventions"
+    },
+    {
+      "id": "GOV-01",
+      "dimension": "governance",
+      "kind": "auto",
+      "hard": true,
+      "runner": "static:scope",
+      "title": "Change scope, gate integrity and tree stability",
+      "criterion": "Changed files are only under src/, tests/ or docs/openapi.yaml, none is a protected file (gate configuration, harness files, CI, infra, package manifests), at least one file under src/ or tests/ changed, and the working tree did not change between `npm run harness:checks` and `npm run harness:verdict` (an Evaluator must not edit code).",
+      "prevents": "Weakening the quality gates to make a sprint pass; unreviewed new dependencies",
+      "skill": "feature-playbook"
+    },
+    {
+      "id": "GOV-02",
+      "dimension": "governance",
+      "kind": "auto",
+      "hard": false,
+      "runner": "static:openapi",
+      "title": "OpenAPI contract updated with route changes",
+      "criterion": "If any src/*/*.routes.ts changed, docs/openapi.yaml changed too.",
+      "prevents": "Undocumented API changes",
+      "skill": "feature-playbook"
+    },
+    {
+      "id": "GOV-03",
+      "dimension": "governance",
+      "kind": "llm",
+      "hard": false,
+      "title": "Generator summary is complete and honest",
+      "criterion": "generator-summary.md lists every acceptance criterion of the contract with its test reference, lists all changed files with their layer, and states known gaps truthfully.",
+      "prevents": "Misreporting",
+      "skill": "sprint-decomposition"
+    },
+    {
+      "id": "GOV-04",
+      "dimension": "governance",
+      "kind": "llm",
+      "hard": false,
+      "title": "No placeholders, dead code or stubs",
+      "criterion": "No TODO/FIXME, commented-out code, unused exports or stubbed behaviour in changed files; names follow the conventions.",
+      "prevents": "Unfinished work reaching main",
+      "skill": "coding-conventions"
+    }
+  ],
+  "allowedPaths": [
+    "src/**",
+    "tests/**",
+    "docs/openapi.yaml"
+  ],
+  "protectedPaths": [
+    ".harness/agents/**",
+    ".harness/skills/**",
+    ".harness/config/**",
+    ".harness/tools/**",
+    ".harness/templates/**",
+    "CLAUDE.md",
+    ".claude/**",
+    ".github/**",
+    "infra/**",
+    "tests/harness/**",
+    "jest.config.js",
+    "eslint.config.mjs",
+    ".dependency-cruiser.cjs",
+    ".jscpd.json",
+    "stryker.conf.json",
+    "tsconfig.json",
+    "tsconfig.build.json",
+    "package.json",
+    "package-lock.json",
+    "Dockerfile",
+    "compose.yaml",
+    "sonar-project.properties",
+    ".checkov.yaml"
+  ],
+  "context": {
+    "planner": {
+      "skills": [
+        "app-context",
+        "architecture-principles",
+        "sprint-decomposition"
+      ]
+    },
+    "generator": {
+      "skills": [
+        "app-context",
+        "architecture-principles",
+        "coding-conventions",
+        "how-to-test",
+        "feature-playbook"
+      ]
+    },
+    "evaluator": {
+      "skills": [
+        "architecture-principles",
+        "how-to-review",
+        "grading-criteria"
+      ]
+    },
+    "monitor": {
+      "skills": [
+        "app-context"
+      ]
+    }
+  }
+}
