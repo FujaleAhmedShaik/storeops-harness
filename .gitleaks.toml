@@ -8,5 +8,6 @@ useDefault = true
 [[allowlists]]
 description = "Azure built-in role definition IDs in infra/main.bicep"
 condition = "AND"
+regexTarget = "line"
 paths = ['''infra/main\.bicep$''']
 regexes = ['''var role\w+ = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\'''']

@@ -1,12 +1,14 @@
 name: CI/CD
 
-# Quality and security gates on every PR; image build + deploy (dev, then prod with approval) on main.
+# Quality and security gates on every PR; image build + deploy to dev on main (prod is not deployed yet).
 # The harness Evaluator runs the same `npm run verify` locally (see docs/ARCHITECTURE.md): the harness precedes
 # and feeds this pipeline, it never replaces it.
 on:
   pull_request:
   push:
     branches: [main]
+  # Manual run (Actions > CI/CD > Run workflow, branch main): the full gates, then publish and deploy to dev.
+  # Use it to bring dev back after "Teardown dev".
   workflow_dispatch:
 
 permissions:
@@ -95,6 +97,8 @@ jobs:
       - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The action defaults to 8.24.3, which does not understand the [[allowlists]] format used in .gitleaks.toml.
+          GITLEAKS_VERSION: "8.30.1"
 
   container:
     name: Container build, lint, vulnerability scan, SBOM, runtime tests
@@ -263,45 +267,3 @@ jobs:
             -config replacer.full_list(0).matchstr=Authorization
             -config replacer.full_list(0).regex=false
             -config replacer.full_list(0).replacement='Bearer ${{ env.ZAP_TOKEN }}'"
-
-  deploy-prod:
-    name: Deploy to prod (manual approval)
-    runs-on: ubuntu-latest
-    needs: deploy-dev
-    environment: prod # configure required reviewers on this environment in GitHub settings
-    concurrency:
-      group: azure-prod
-      cancel-in-progress: false
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Promote the same image (copy between registries, no rebuild)
-        run: |
-          SRC="${{ needs.deploy-dev.outputs.image }}"
-          DEV_ACR="${SRC%%.azurecr.io*}"
-          # The prod registry is created by the platform step below; import is registry-to-registry.
-          export DEPLOYER_OBJECT_ID="${{ vars.DEPLOYER_OBJECT_ID }}" AZURE_LOCATION="${{ vars.AZURE_LOCATION }}"
-          bash infra/scripts/deploy.sh prod
-          PROD_ACR=$(az acr list --resource-group rg-storeops-prod --query '[0].name' -o tsv)
-          TAG="${SRC##*:}"
-          az acr import --name "$PROD_ACR" \
-            --source "${IMAGE_NAME}:${TAG}" --image "${IMAGE_NAME}:${TAG}" \
-            --registry "/subscriptions/${{ vars.AZURE_SUBSCRIPTION_ID }}/resourceGroups/rg-storeops-dev/providers/Microsoft.ContainerRegistry/registries/${DEV_ACR}" --force
-          echo "PROD_IMAGE=${PROD_ACR}.azurecr.io/${IMAGE_NAME}:${TAG}" >> "$GITHUB_ENV"
-      - name: Deploy
-        id: deploy
-        env:
-          DEPLOYER_OBJECT_ID: ${{ vars.DEPLOYER_OBJECT_ID }}
-          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-        run: bash infra/scripts/deploy.sh prod "$PROD_IMAGE"
-      - name: Readiness check
-        run: |
-          for _ in $(seq 1 30); do if curl -fsS "${{ steps.deploy.outputs.app_url }}/health/ready"; then exit 0; fi; sleep 5; done
-          exit 1

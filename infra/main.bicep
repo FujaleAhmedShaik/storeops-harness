@@ -46,8 +46,8 @@ var tags = {
 // Built-in role definition ids
 var roleAcrPull = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 var roleAcrPush = '8311e382-0749-4cb8-b61a-304f252e45ec'
-var roleKeyVaultSecretsUser = '4633458b-17de-40a2-b85b-6b2e8ad2cd0e'
-var roleKeyVaultSecretsOfficer = 'b86a8fe4-44ce-4948-aee5-eccb2d0f8d5c'
+var roleKeyVaultSecretsUser = '4633458b-17de-408a-b874-0445c86b69e6'
+var roleKeyVaultSecretsOfficer = 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
 
 resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: 'log-${workload}-${environmentName}'
