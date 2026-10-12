@@ -60,3 +60,11 @@ A practice run on a scratch copy with deliberately broken code found two real bu
 - I asked about ignoring "reports" folders. A plain `reports/` rule in `.gitignore` would also have hidden `src/reports` and `tests/reports`, which are real code, so the rule is now `/reports/`.
 - VS Code showed `tsconfig.json` in red because of a deprecated setting. Claude Code changed it to `node16`.
 - Linting the workflow files found style problems, and we found that the infrastructure workflow and the CI/CD workflow could deploy to the same environment at the same time. They now share one lock per environment.
+
+## 2026-10-12: dependency upgrade, and a decision not to follow it all the way
+
+I asked Claude Code to bring every package to its latest version. Express moved to major version 5 and ESLint to major version 10, with the rest picking up smaller bumps. Typecheck, lint, the architecture check, the duplication check and the full test suite all stayed green afterwards.
+
+I decided not to take TypeScript to its new major version 7, even though it is npm's `latest` tag. `ts-jest` and `typescript-eslint` only support TypeScript up to just before 6.1/7, so moving now would have broken the test and lint toolchain for no real gain, and I'd rather wait for those tools to catch up. TypeScript stays on 5.9.3. For the same reason I kept `@types/node` on the 24.x line that matches the Node version the Dockerfile builds with, not the newer 26.x that the upgrade tool picked up from my own machine.
+
+The upgrade also surfaced a test that was already flaky before any of this: `tests/server.test.ts`'s "force-closes connections" test could race ahead of the server and measure 0ms instead of waiting out the shutdown grace period, and the client socket in that test had no error handler, so a reset connection could crash the whole Jest worker. I wrote that fix myself, not Claude Code, following the same pattern as the rest of the file, since the timing assertion was easy to get subtly wrong and I wanted to reason through it by hand.

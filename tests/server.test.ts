@@ -25,8 +25,17 @@ describe('startServer', () => {
   it('force-closes connections that outlive the grace period', async () => {
     const running = await startServer(config, logger, { shutdownGraceMs: 50 });
     const socket = net.connect(running.port, '127.0.0.1');
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    socket.on('error', () => {}); // the forced close below resets this socket; that's expected
     await new Promise<void>((resolve) => socket.once('connect', resolve));
-    socket.write('GET /health/live HTTP/1.1\r\nHost: localhost\r\n'); // headers never completed
+    // Headers complete (so the server treats the connection as busy, not idle) but the declared
+    // body never arrives, so the request handler hangs until force-closed.
+    socket.write(
+      'POST /api/activities HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 10\r\nConnection: keep-alive\r\n\r\n',
+    );
+    // Give the server a moment to parse the headers and mark the connection busy before closing -
+    // otherwise close() can race ahead and find the connection still idle.
+    await new Promise((resolve) => setTimeout(resolve, 20));
     const started = Date.now();
     await running.close();
     expect(Date.now() - started).toBeGreaterThanOrEqual(40);
