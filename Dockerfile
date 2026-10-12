@@ -3,7 +3,7 @@
 # Node 24 LTS on Debian 13: Node 20 is end-of-life, and the Debian 12 distroless tag still shipped vulnerable libssl3.
 
 # ---- build: compile TypeScript, then drop dev dependencies ----
-FROM node:24-trixie-slim AS build
+FROM node:26-trixie-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
