@@ -1,0 +1,112 @@
+name: Infrastructure
+
+# Provisions and updates Azure infrastructure from infra/**. Pull requests get a what-if preview;
+# merging to main applies it (dev automatically, prod after approval).
+on:
+  pull_request:
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+  push:
+    branches: [main]
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate and scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Bicep to ARM (fails on any Bicep error)
+        run: az bicep build --file infra/main.bicep --outfile infra/main.arm.json
+      - name: Shell script lint
+        run: |
+          sudo apt-get install -y shellcheck >/dev/null
+          shellcheck infra/scripts/*.sh
+      - name: Checkov (skips and their reasons are in .checkov.yaml)
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          file: infra/main.arm.json
+          config_file: .checkov.yaml
+
+  what-if:
+    name: What-if (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      matrix:
+        environment: [dev, prod]
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: What-if
+        run: |
+          az deployment group what-if \
+            --resource-group rg-storeops-${{ matrix.environment }} \
+            --template-file infra/main.bicep \
+            --parameters environmentName=${{ matrix.environment }} location=${{ vars.AZURE_LOCATION }} \
+                         deployerPrincipalId=${{ vars.DEPLOYER_OBJECT_ID }} deployApp=false
+
+  apply-dev:
+    name: Apply to dev
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    environment: dev
+    # One Azure deployment per environment at a time, across ci-cd.yml AND infra.yml (same-name deployments cannot overlap).
+    concurrency:
+      group: azure-dev
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy (keeps the currently running image)
+        env:
+          DEPLOYER_OBJECT_ID: ${{ vars.DEPLOYER_OBJECT_ID }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+        run: bash infra/scripts/deploy.sh dev
+
+  apply-prod:
+    name: Apply to prod (manual approval)
+    runs-on: ubuntu-latest
+    needs: apply-dev
+    environment: prod
+    concurrency:
+      group: azure-prod
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy (keeps the currently running image)
+        env:
+          DEPLOYER_OBJECT_ID: ${{ vars.DEPLOYER_OBJECT_ID }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+        run: bash infra/scripts/deploy.sh prod

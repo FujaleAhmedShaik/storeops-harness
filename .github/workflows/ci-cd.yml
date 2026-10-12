@@ -1,0 +1,298 @@
+name: CI/CD
+
+# Quality and security gates on every PR; image build + deploy (dev, then prod with approval) on main.
+# The harness Evaluator runs the same `npm run verify` locally (see docs/ARCHITECTURE.md): the harness precedes
+# and feeds this pipeline, it never replaces it.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: "24"
+  IMAGE_NAME: storeops-api
+
+jobs:
+  quality:
+    name: Quality gate (types, lint, architecture, duplication, tests >= 90%, audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - name: Upload coverage for Sonar
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/lcov.info
+          retention-days: 7
+
+  mutation:
+    name: Mutation testing (do the tests assert behaviour?)
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run test:mutation
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-report
+          path: reports/mutation
+          retention-days: 14
+
+  sonar:
+    name: SonarCloud quality gate
+    runs-on: ubuntu-latest
+    needs: quality
+    # Secrets are unavailable to fork PRs; the gate is enforced for same-repo PRs and main.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Sonar needs full history for new-code detection and blame
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage
+          path: coverage
+      - name: SonarCloud scan (fails the job if the quality gate fails)
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.qualitygate.wait=true
+
+  secrets-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  container:
+    name: Container build, lint, vulnerability scan, SBOM, runtime tests
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+      - name: Build image
+        run: docker build --tag ${{ env.IMAGE_NAME }}:ci .
+      - name: Trivy - fail on HIGH/CRITICAL vulnerabilities (image)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Generate SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:ci
+          format: cyclonedx
+          output: sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+          retention-days: 30
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Run the container and exercise it (smoke + performance gate)
+        env:
+          JWT_SECRET: ${{ github.run_id }}-ci-only-secret-0123456789abcdef0123456789
+          DEMO_PASSWORD: ci-only-demo-password-${{ github.run_id }}
+        run: |
+          docker run -d --name api -p 3000:3000 \
+            --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+            -e APP_ENV=local -e SEED_DEMO_DATA=true -e RATE_LIMIT_MAX=100000 \
+            -e JWT_SECRET -e DEMO_PASSWORD \
+            ${{ env.IMAGE_NAME }}:ci
+          for _ in $(seq 1 30); do if curl -fsS http://localhost:3000/health/live; then break; fi; sleep 1; done
+          node scripts/smoke.js
+          node scripts/perf-smoke.js
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs api || true
+
+  iac:
+    name: Infrastructure as code (Bicep build + Checkov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Bicep to ARM (Checkov cannot parse current Bicep syntax; fails here on any Bicep error)
+        run: az bicep build --file infra/main.bicep --outfile infra/main.arm.json
+      - name: Checkov (skips and their reasons are in .checkov.yaml)
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          file: infra/main.arm.json
+          config_file: .checkov.yaml
+
+  publish:
+    name: Publish image to Azure Container Registry
+    runs-on: ubuntu-latest
+    needs: [quality, sonar, secrets-scan, container, iac]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    environment: dev
+    # One Azure deployment per environment at a time, across ci-cd.yml AND infra.yml (same-name deployments cannot overlap).
+    concurrency:
+      group: azure-dev
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Ensure the dev platform exists (creates the registry on first run)
+        env:
+          DEPLOYER_OBJECT_ID: ${{ vars.DEPLOYER_OBJECT_ID }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+        run: bash infra/scripts/deploy.sh dev
+      - name: Build and push (immutable tag = commit SHA)
+        id: meta
+        run: |
+          ACR_NAME=$(az acr list --resource-group rg-storeops-dev --query '[0].name' -o tsv)
+          IMAGE="${ACR_NAME}.azurecr.io/${IMAGE_NAME}:${GITHUB_SHA}"
+          az acr login --name "$ACR_NAME"
+          docker build --tag "$IMAGE" .
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+  deploy-dev:
+    name: Deploy to dev, smoke test, ZAP API scan
+    runs-on: ubuntu-latest
+    needs: publish
+    environment: dev
+    # One Azure deployment per environment at a time, across ci-cd.yml AND infra.yml (same-name deployments cannot overlap).
+    concurrency:
+      group: azure-dev
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      image: ${{ needs.publish.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy
+        id: deploy
+        env:
+          DEPLOYER_OBJECT_ID: ${{ vars.DEPLOYER_OBJECT_ID }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+        run: bash infra/scripts/deploy.sh dev "${{ needs.publish.outputs.image }}"
+      - name: Smoke test the deployed API
+        env:
+          BASE_URL: ${{ steps.deploy.outputs.app_url }}
+        run: |
+          DEMO_PASSWORD=$(az keyvault secret show --vault-name "${{ steps.deploy.outputs.key_vault }}" --name demo-password --query value -o tsv)
+          echo "::add-mask::$DEMO_PASSWORD"
+          export DEMO_PASSWORD
+          for _ in $(seq 1 30); do if curl -fsS "$BASE_URL/health/ready"; then break; fi; sleep 5; done
+          node scripts/smoke.js
+          # authenticated token for the ZAP scan
+          TOKEN=$(curl -fsS -X POST "$BASE_URL/api/auth/login" -H 'Content-Type: application/json' \
+            -d "{\"email\":\"manager.s1@storeops.example\",\"password\":\"$DEMO_PASSWORD\"}" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).accessToken')
+          echo "::add-mask::$TOKEN"
+          echo "ZAP_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+      - name: OWASP ZAP API scan (OpenAPI-driven, passive/safe mode)
+        uses: zaproxy/action-api-scan@v0.9.0
+        with:
+          target: /zap/wrk/docs/openapi.yaml # the action mounts the workspace at /zap/wrk
+          format: openapi
+          allow_issue_writing: false
+          fail_action: true
+          cmd_options: >-
+            -S -O ${{ steps.deploy.outputs.app_url }}
+            -z "-config replacer.full_list(0).description=auth
+            -config replacer.full_list(0).enabled=true
+            -config replacer.full_list(0).matchtype=REQ_HEADER
+            -config replacer.full_list(0).matchstr=Authorization
+            -config replacer.full_list(0).regex=false
+            -config replacer.full_list(0).replacement='Bearer ${{ env.ZAP_TOKEN }}'"
+
+  deploy-prod:
+    name: Deploy to prod (manual approval)
+    runs-on: ubuntu-latest
+    needs: deploy-dev
+    environment: prod # configure required reviewers on this environment in GitHub settings
+    concurrency:
+      group: azure-prod
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Promote the same image (copy between registries, no rebuild)
+        run: |
+          SRC="${{ needs.deploy-dev.outputs.image }}"
+          DEV_ACR="${SRC%%.azurecr.io*}"
+          # The prod registry is created by the platform step below; import is registry-to-registry.
+          export DEPLOYER_OBJECT_ID="${{ vars.DEPLOYER_OBJECT_ID }}" AZURE_LOCATION="${{ vars.AZURE_LOCATION }}"
+          bash infra/scripts/deploy.sh prod
+          PROD_ACR=$(az acr list --resource-group rg-storeops-prod --query '[0].name' -o tsv)
+          TAG="${SRC##*:}"
+          az acr import --name "$PROD_ACR" \
+            --source "${IMAGE_NAME}:${TAG}" --image "${IMAGE_NAME}:${TAG}" \
+            --registry "/subscriptions/${{ vars.AZURE_SUBSCRIPTION_ID }}/resourceGroups/rg-storeops-dev/providers/Microsoft.ContainerRegistry/registries/${DEV_ACR}" --force
+          echo "PROD_IMAGE=${PROD_ACR}.azurecr.io/${IMAGE_NAME}:${TAG}" >> "$GITHUB_ENV"
+      - name: Deploy
+        id: deploy
+        env:
+          DEPLOYER_OBJECT_ID: ${{ vars.DEPLOYER_OBJECT_ID }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+        run: bash infra/scripts/deploy.sh prod "$PROD_IMAGE"
+      - name: Readiness check
+        run: |
+          for _ in $(seq 1 30); do if curl -fsS "${{ steps.deploy.outputs.app_url }}/health/ready"; then exit 0; fi; sleep 5; done
+          exit 1
