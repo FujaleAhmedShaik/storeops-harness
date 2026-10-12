@@ -5,7 +5,24 @@
  * Exercises all 9 base endpoints plus login, with readable output suitable for DEPLOYMENT.md screenshots.
  * Requires the target to run with SEED_DEMO_DATA=true (local / dev only).
  */
-const baseUrl = (process.env.BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+/** The target comes from the environment, so accept only a plain http(s) origin: no credentials, path, query or other schemes. */
+function parseBaseUrl(raw) {
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    console.error(`BASE_URL is not a valid URL: ${raw}`);
+    process.exit(2);
+  }
+  const plainOrigin = (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password && url.pathname === '/' && !url.search && !url.hash;
+  if (!plainOrigin) {
+    console.error('BASE_URL must be an http(s) origin such as http://localhost:3000 (no credentials, path or query).');
+    process.exit(2);
+  }
+  return url;
+}
+
+const baseUrl = parseBaseUrl(process.env.BASE_URL ?? 'http://localhost:3000');
 const password = process.env.DEMO_PASSWORD;
 
 if (!password) {
@@ -16,7 +33,7 @@ if (!password) {
 let failures = 0;
 
 async function call(label, method, path, { token, body, expect } = {}) {
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await fetch(new URL(path, baseUrl), {
     method,
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -38,7 +55,7 @@ async function login(email) {
 }
 
 async function main() {
-  console.log(`StoreOps smoke test -> ${baseUrl}\n`);
+  console.log(`StoreOps smoke test -> ${baseUrl.origin}\n`);
   await call('liveness', 'GET', '/health/live', { expect: 200 });
   await call('readiness', 'GET', '/health/ready', { expect: 200 });
   await call('unauthenticated request is rejected', 'GET', '/api/activities', { expect: 401 });

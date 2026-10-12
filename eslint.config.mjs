@@ -79,6 +79,7 @@ export default defineConfig(
         process: 'readonly',
         console: 'readonly',
         fetch: 'readonly',
+        URL: 'readonly',
         performance: 'readonly',
       },
     },

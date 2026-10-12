@@ -74,7 +74,9 @@ describe('authenticate', () => {
   app.use(errorHandler(createLogger('silent')));
 
   it('attaches the verified caller', async () => {
-    await request(app).get('/me').set('Authorization', `Bearer ${accessToken}`).expect(200, users.manager);
+    const response = await request(app).get('/me').set('Authorization', `Bearer ${accessToken}`);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(users.manager);
   });
 
   it.each([
@@ -85,7 +87,7 @@ describe('authenticate', () => {
     ['lowercase scheme', (token: string) => `bearer ${token}`],
     ['two spaces', (token: string) => `Bearer  ${token}`],
   ])('rejects %s', async (_label, build) => {
-    await request(app).get('/me').set('Authorization', build(accessToken)).expect(401);
+    expect((await request(app).get('/me').set('Authorization', build(accessToken))).status).toBe(401);
   });
 
   it('rejects a missing header', async () => {
@@ -95,7 +97,7 @@ describe('authenticate', () => {
   });
 
   it('currentUser refuses to run without an authenticated caller', async () => {
-    await request(app).get('/anonymous').expect(401);
+    expect((await request(app).get('/anonymous')).status).toBe(401);
   });
 });
 

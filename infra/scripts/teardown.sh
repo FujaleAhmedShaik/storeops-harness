@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Deletes an environment's resource group (and everything in it) to stop all cost, and waits until it is really gone.
-#   bash infra/scripts/teardown.sh <dev|prod> [--yes]
+#   bash infra/scripts/teardown.sh <dev|prod> [--yes]
 #
 # Why it does more than "az group delete":
-#  - dev: the Key Vault is only soft-deleted and its name is deterministic, so it must be PURGED or the next deployment of the same
-#    environment fails with "vault already exists in deleted state". Prod has purge protection (by design), so its vault cannot be purged.
-#  - the Log Analytics workspace is force-deleted for the same reason (otherwise its name stays reserved for 14 days).
+#  - dev: the Key Vault is only soft-deleted and its name is deterministic, so it must be PURGED or the next deployment of the same
+#    environment fails with "vault already exists in deleted state". Prod has purge protection (by design), so its vault cannot be purged.
+#  - the Log Analytics workspace is force-deleted for the same reason (otherwise its name stays reserved for 14 days).
 # Afterwards the resource group and its role assignments are gone: run bootstrap.sh again (idempotent, about 3 minutes) before the next deployment.
 set -euo pipefail
 

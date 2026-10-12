@@ -153,7 +153,7 @@ describe('alerts end to end through the event bus', () => {
   it('blocking a HIGH activity escalates to the store manager of that store only', async () => {
     const programmeId = await createProgramme(world, 'manager1', 'Escalation drive');
     const { body } = await createTask(world, programmeId, 'manager1', { title: 'Broken chiller', priority: 'HIGH' });
-    await request(world.app).patch(`/api/activities/${body.id}`).set(world.auth('lead1')).send({ status: 'BLOCKED' }).expect(200);
+    expect((await request(world.app).patch(`/api/activities/${body.id}`).set(world.auth('lead1')).send({ status: 'BLOCKED' })).status).toBe(200);
 
     const manager = await request(world.app).get('/api/alerts?status=UNREAD').set(world.auth('manager1'));
     expect(rows<{ type: string; relatedId: string }>(manager.body).map((a) => [a.type, a.relatedId])).toContainEqual(['ESCALATION', body.id]);
@@ -163,7 +163,7 @@ describe('alerts end to end through the event bus', () => {
   });
 
   it('validates alert queries', async () => {
-    await request(world.app).get('/api/alerts?status=SEEN').set(world.auth('manager1')).expect(400);
-    await request(world.app).get('/api/alerts?limit=1000').set(world.auth('manager1')).expect(400);
+    expect((await request(world.app).get('/api/alerts?status=SEEN').set(world.auth('manager1'))).status).toBe(400);
+    expect((await request(world.app).get('/api/alerts?limit=1000').set(world.auth('manager1'))).status).toBe(400);
   });
 });
