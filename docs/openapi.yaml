@@ -1,0 +1,323 @@
+openapi: 3.0.3
+info:
+  title: StoreOps API
+  version: 0.1.0
+  description: Retail store operations REST API (capstone reference codebase - not for production use).
+servers:
+  - url: http://localhost:3000
+security:
+  - bearerAuth: []
+paths:
+  /health/live:
+    get:
+      summary: Liveness probe
+      security: []
+      responses:
+        "200": { description: Process is alive }
+  /health/ready:
+    get:
+      summary: Readiness probe
+      security: []
+      responses:
+        "200": { description: Ready to serve traffic }
+  /api/auth/login:
+    post:
+      summary: Exchange credentials for an access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Access token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthToken" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /api/activities:
+    get:
+      summary: List activities of the caller's store
+      parameters:
+        - { name: programmeId, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/TaskStatus" } }
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Offset" }
+      responses:
+        "200":
+          description: A page of activities
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Create an activity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTask" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/activities/{id}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+    get:
+      summary: Get an activity
+      responses:
+        "200":
+          description: The activity
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    patch:
+      summary: Update status, priority, category, assignee or text fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateTask" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+    delete:
+      summary: Delete an activity (owner or store manager only)
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/programmes:
+    get:
+      summary: List programmes of the authenticated store
+      parameters:
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Offset" }
+      responses:
+        "200":
+          description: A page of programmes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProgrammePage" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Create a programme (store managers only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateProgramme" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Programme" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/programmes/{id}/members:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+    post:
+      summary: Add a staff member to a programme
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddMember" }
+      responses:
+        "201":
+          description: The programme with its updated members
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Programme" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/alerts:
+    get:
+      summary: Alerts for the authenticated user
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [UNREAD, READ] } }
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Offset" }
+      responses:
+        "200":
+          description: A page of alerts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+    Offset: { name: offset, in: query, schema: { type: integer, minimum: 0, maximum: 100000, default: 0 } }
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorBody" }
+  schemas:
+    ErrorBody:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, example: VALIDATION_ERROR }
+            message: { type: string }
+            requestId: { type: string }
+            details:
+              type: array
+              items: { type: object, properties: { path: { type: string }, message: { type: string } } }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, maxLength: 128 }
+    AuthToken:
+      type: object
+      properties:
+        accessToken: { type: string }
+        tokenType: { type: string, enum: [Bearer] }
+        expiresIn: { type: integer }
+    TaskStatus: { type: string, enum: [TODO, IN_PROGRESS, DONE, BLOCKED] }
+    TaskPriority: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+    TaskCategory: { type: string, enum: [RESTOCKING, PLANOGRAM, AUDIT, COMPLIANCE, GENERAL] }
+    Task:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        priority: { $ref: "#/components/schemas/TaskPriority" }
+        category: { $ref: "#/components/schemas/TaskCategory" }
+        programmeId: { type: string, format: uuid }
+        storeId: { type: string }
+        assigneeId: { type: string, format: uuid, nullable: true }
+        createdBy: { type: string, format: uuid }
+        dueDate: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateTask:
+      type: object
+      required: [title, programmeId]
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 2000 }
+        programmeId: { type: string, format: uuid }
+        assigneeId: { type: string, format: uuid }
+        priority: { $ref: "#/components/schemas/TaskPriority" }
+        category: { $ref: "#/components/schemas/TaskCategory" }
+        dueDate: { type: string, format: date-time }
+    UpdateTask:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 2000 }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        priority: { $ref: "#/components/schemas/TaskPriority" }
+        category: { $ref: "#/components/schemas/TaskCategory" }
+        assigneeId: { type: string, format: uuid, nullable: true }
+    TaskPage:
+      type: object
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Task" } }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+    Programme:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        storeId: { type: string }
+        ownerId: { type: string, format: uuid }
+        status: { type: string, enum: [ACTIVE, CLOSED] }
+        createdAt: { type: string, format: date-time }
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              userId: { type: string, format: uuid }
+              role: { type: string, enum: [STORE_MANAGER, DEPARTMENT_LEAD, ASSOCIATE] }
+              addedAt: { type: string, format: date-time }
+    CreateProgramme:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 2000 }
+    AddMember:
+      type: object
+      required: [userId, role]
+      additionalProperties: false
+      properties:
+        userId: { type: string, format: uuid }
+        role: { type: string, enum: [STORE_MANAGER, DEPARTMENT_LEAD, ASSOCIATE] }
+    ProgrammePage:
+      type: object
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Programme" } }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+    Alert:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        type: { type: string, enum: [INVENTORY, SLA_BREACH, SHIFT_HANDOVER, ESCALATION] }
+        channel: { type: string, enum: [IN_APP, EMAIL] }
+        status: { type: string, enum: [UNREAD, READ] }
+        title: { type: string }
+        message: { type: string }
+        relatedId: { type: string }
+        createdAt: { type: string, format: date-time }
+    AlertPage:
+      type: object
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/Alert" } }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }

@@ -1,0 +1,62 @@
+# Architecture journal
+
+This repository was built with Claude Code, Anthropic's AI coding tool. Claude Code wrote the application code, the harness files, the pipelines and the documents,
+and it ran the checks. I set the requirements, made the decisions below, and asked for the changes and reviews. I used Claude Code for the design and the
+implementation, and I decided what to keep. This journal was drafted with Claude Code from our working sessions, so the events in it are accurate.
+
+## 2026-10-09: starting out
+
+I gave Claude Code the Build Track brief and create a project folder and give me a plan before building anything. I asked for these standards:
+more than 90% test coverage, no Sonar, security or duplication problems, and the OWASP standards. I also asked for a local Podman and Docker setup and CI/CD on Azure.
+I asked whether the pipeline could create the Azure resources, and whether that code should live in a separate repository.
+
+Claude Code recommended these, and I told it to go with all of them:
+
+- Node.js with TypeScript for StoreOps
+- Azure Container Apps for hosting
+- Bicep for the infrastructure, kept in the same repository in an `infra/` folder, with its own pipeline
+- Podman for local containers
+
+I added that SonarCloud should run only in the pipeline, not on my machine. Since I plan to put the code and the demo video on GitHub, we used GitHub Actions with OIDC login to Azure.
+
+## 2026-10-09: the StoreOps application
+
+Claude Code generated the application: 5 modules, 3 layers, the 9 base endpoints and a login endpoint, with in-memory storage.
+I did not paste the brief's exact bootstrap prompt. The application was built in a conversation from a fuller specification, with real business rules instead of stubs.
+I need to explain that difference if a reviewer asks.
+
+## 2026-10-09: testing the tests
+
+The first full check run failed in parallel because password hashing was too slow in tests. Claude Code changed the hash format so it records its own settings, and tests now use a cheap setting only when `NODE_ENV=test`.
+
+Mutation testing scored 81.5% on the first run. It showed one function that was never used, a request logger that no test covered, and some password tests that failed for the wrong reason.
+After those were fixed the score was 93.5%.
+
+## 2026-10-09: container and supply chain
+
+Trivy found serious OpenSSL problems in the Debian 12 base image, and pulling a fresh image did not fix them. Node 20 also reached end-of-life in April 2026.
+So the project uses Node 24 on Debian 13 (distroless), where Trivy found nothing. This is different from the "Node 20" in the brief, and I will say so in the brief.
+Hadolint also asked for a numeric user id in the Dockerfile, which was fixed.
+
+## 2026-10-09: infrastructure code
+
+Checkov could not read the Bicep file directly, so it scans the compiled ARM template instead. It reported 7 findings. They are accepted for this project, and each one has a reason written in `.checkov.yaml`. I have not gone through them one by one yet.
+Two examples: the registry and key vault stay reachable from the public internet because the GitHub runners need them, and key vault purge protection is on in prod but off in dev so I can recreate dev quickly.
+
+## 2026-10-09 to 2026-10-10: the harness
+
+The design rule is that the AI never decides pass or fail. The Evaluator gives yes/no answers with evidence, and a small tested program works out the verdict.
+Missing, unsure or evidence-free answers count as failures.
+
+The setup has 4 scoring areas (35/35/20/10), 21 checks and 12 hard gates. The pass mark is 90, and I allow 75 to 89 as a conditional pass.
+A sprint gets 3 tries before it stops and asks me. The harness files, the CI files and the settings that control the gates are protected, so the agents cannot edit them during a run.
+
+A practice run on a scratch copy with deliberately broken code found two real bugs, and both were fixed: a missing folder for the Jest report, and the protection check being case-sensitive, which is a problem on Windows.
+
+## 2026-10-10 to 2026-10-11: problems found on the way
+
+- Shell scripts were saved by git without the executable flag, so the Linux pipeline would have failed. Every script is now run with `bash`.
+- I asked about line endings on Windows and Mac. A check that looked like it found CRLF files was a false alarm, because the tool was misreading the pattern. Counting the actual bytes showed the files already use LF.
+- I asked about ignoring "reports" folders. A plain `reports/` rule in `.gitignore` would also have hidden `src/reports` and `tests/reports`, which are real code, so the rule is now `/reports/`.
+- VS Code showed `tsconfig.json` in red because of a deprecated setting. Claude Code changed it to `node16`.
+- Linting the workflow files found style problems, and we found that the infrastructure workflow and the CI/CD workflow could deploy to the same environment at the same time. They now share one lock per environment.
