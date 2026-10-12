@@ -3,6 +3,9 @@
 # written through a private temp file, and never echoed. Existing secrets are never rotated here.
 set -euo pipefail
 
+# shellcheck source=_common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 ENV_NAME="${1:?usage: ensure-secrets.sh <dev|prod>}"
 RG="rg-storeops-${ENV_NAME}"
 VAULT="$(az deployment group show --resource-group "$RG" --name "platform-${ENV_NAME}" --query properties.outputs.keyVaultName.value -o tsv)"

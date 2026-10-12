@@ -10,6 +10,9 @@
 # Run from Git Bash, WSL or Azure Cloud Shell. Needs permission to create app registrations in your Entra tenant.
 set -euo pipefail
 
+# shellcheck source=_common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 REPO="${1:?usage: bootstrap.sh <github-owner>/<repo> [location]}"
 LOCATION="${2:-uksouth}"
 APP_NAME="sp-storeops-github-deploy"

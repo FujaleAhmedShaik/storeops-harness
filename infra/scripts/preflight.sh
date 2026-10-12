@@ -4,6 +4,9 @@
 # Prints PASS / WARN / FAIL per item with what to do about it. Exits 1 if anything FAILed.
 set -uo pipefail
 
+# shellcheck source=_common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
 SUBSCRIPTION="${1:-}"
 LOCATION="${2:-uksouth}"
 FAILS=0
@@ -62,7 +65,7 @@ else
 fi
 
 echo "== 5. Entra ID: can you read app registrations? (bootstrap creates one)"
-if az ad app list --top 1 --query '[0].appId' -o tsv >/dev/null 2>&1; then
+if az ad app list --display-name sp-storeops-github-deploy --query 'length(@)' -o tsv >/dev/null 2>&1; then
   pass "directory read works. Creating the app registration can only be proven by running bootstrap.sh"
 else
   warn "cannot read app registrations. Ask your tenant admin, or create the app and federated credentials in the portal (docs/INFRA-SETUP.md)"
