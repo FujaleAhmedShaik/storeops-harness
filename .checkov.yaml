@@ -1,0 +1,19 @@
+# Checkov scans the ARM template compiled from infra/main.bicep (its Bicep parser cannot read current Bicep syntax).
+# Each skip is a conscious, documented trade-off for this capstone; revisit before any real workload.
+framework:
+  - arm
+skip-check:
+  # Public network access: GitHub-hosted runners must push images and write secrets, and private networking
+  # needs a VNet, private endpoints and Premium SKUs. Access is RBAC-only (no admin user, no anonymous pull).
+  - CKV_AZURE_139 # ACR public network access
+  - CKV_AZURE_109 # Key Vault firewall rules
+  - CKV_AZURE_189 # Key Vault public network access
+  # Defender for Containers / Premium-tier features. Image scanning is done in CI with Trivy instead.
+  - CKV_AZURE_163 # ACR vulnerability scanning (Defender)
+  - CKV_AZURE_166 # ACR image quarantine (Premium)
+  # Enabled in prod (see enablePurgeProtection in infra/main.bicep). Disabled in dev on purpose so a torn-down
+  # environment can be re-provisioned immediately instead of waiting out the retention period.
+  - CKV_AZURE_110 # Key Vault purge protection
+  - CKV_AZURE_42 # Key Vault recoverable
+quiet: true
+compact: true
