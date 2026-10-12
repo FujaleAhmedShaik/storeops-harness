@@ -1,0 +1,39 @@
+# Local run: `podman compose up --build` (or `docker compose up --build`). See README.md.
+# Secrets come from .env (generate with `npm run init:env`); nothing sensitive is committed.
+services:
+  api:
+    image: storeops-api:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:${HOST_PORT:-3000}:3000"
+    environment:
+      APP_ENV: local
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      JWT_SECRET: ${JWT_SECRET:?run 'npm run init:env' to create .env}
+      SEED_DEMO_DATA: "true"
+      DEMO_PASSWORD: ${DEMO_PASSWORD:?run 'npm run init:env' to create .env}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
+    # Hardening: immutable filesystem, no capabilities, no privilege escalation, bounded resources.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 200
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - /nodejs/bin/node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
