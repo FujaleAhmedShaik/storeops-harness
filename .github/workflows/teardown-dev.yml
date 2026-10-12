@@ -1,0 +1,40 @@
+name: Teardown dev
+
+# Manual only. Deletes every resource in rg-storeops-dev to stop its cost; the resource group and the pipeline's roles on it are
+# kept, so the next run of the CI/CD workflow on main redeploys everything. Prod is deliberately not offered here.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "dev" to confirm deleting everything in rg-storeops-dev'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  teardown:
+    name: Delete the dev resources
+    runs-on: ubuntu-latest
+    # Only from main, and only when the confirmation text matches.
+    if: ${{ github.ref == 'refs/heads/main' && inputs.confirm == 'dev' }}
+    environment: dev
+    # Same lock as the dev deployments, so a teardown never overlaps a deploy.
+    concurrency:
+      group: azure-dev
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Delete the resources (keeps the resource group and roles)
+        env:
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+        run: bash infra/scripts/teardown.sh dev --yes --keep-group
