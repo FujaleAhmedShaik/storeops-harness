@@ -75,7 +75,7 @@ jobs:
           name: coverage
           path: coverage
       - name: SonarCloud scan (fails the job if the quality gate fails)
-        uses: SonarSource/sonarqube-scan-action@v5
+        uses: SonarSource/sonarqube-scan-action@v8
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
