@@ -32,6 +32,14 @@ export const listTasksQuerySchema = z.strictObject({
   ...paginationShape,
 });
 
+export const bulkUpdateStatusSchema = z.strictObject({
+  items: z
+    .array(z.strictObject({ id: z.uuid(), status: z.enum(['DONE', 'BLOCKED']) }))
+    .min(1)
+    .max(50),
+});
+
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
+export type BulkStatusInput = z.infer<typeof bulkUpdateStatusSchema>;

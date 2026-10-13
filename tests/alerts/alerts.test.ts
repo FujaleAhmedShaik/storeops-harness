@@ -92,6 +92,37 @@ describe('AlertsService event handling', () => {
   });
 });
 
+describe('AlertsService shift handover audit', () => {
+  const bulkEvent = {
+    taskId: 't-9',
+    title: 'Close deli counter',
+    storeId: STORE_A,
+    assigneeId: ids.associate,
+    createdBy: 'creator-1',
+    updatedBy: 'm-1',
+    from: 'IN_PROGRESS',
+    to: 'DONE',
+  } as const;
+
+  it('S2-AC6: stores a SHIFT_HANDOVER notification for the assignee', async () => {
+    const { bus, repo } = setup();
+    await bus.emit('activity.bulk_status_updated', bulkEvent);
+    const alerts = await repo.findByUser(ids.associate);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toMatchObject({ type: 'SHIFT_HANDOVER', channel: 'IN_APP', status: 'UNREAD', relatedId: 't-9' });
+    expect(alerts[0]?.message).toBe('"Close deli counter" was moved from IN_PROGRESS to DONE.');
+    await expect(repo.findByUser('creator-1')).resolves.toEqual([]);
+  });
+
+  it('S2-AC6: falls back to the creator when the activity has no assignee', async () => {
+    const { bus, repo } = setup();
+    await bus.emit('activity.bulk_status_updated', { ...bulkEvent, assigneeId: null });
+    const alerts = await repo.findByUser('creator-1');
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toMatchObject({ type: 'SHIFT_HANDOVER', relatedId: 't-9' });
+  });
+});
+
 describe('AlertsService.listForUser', () => {
   it('returns only the caller\'s alerts, newest first, filtered and paged', async () => {
     let tick = 0;
