@@ -10,7 +10,7 @@ The approval step also worked. The Planner's first spec had four criteria that m
 
 ## Where it fell short
 
-The harness only looks at the code, and my biggest problems were not in the code. After my first push I hit wrong Azure role ids, a setting written "True" when the app wants "true", a password saved with a hidden newline, and invisible spaces in an infrastructure file. All of it passed locally. Only a real deployment showed it.
+The harness only looks at the code, and my biggest problems were not in the code. After my first push I hit wrong Azure role ids, a setting written "True" when the app wants "true", a password that most likely had a hidden newline, and invisible spaces in an infrastructure file. All of it passed locally. Only a real deployment showed it.
 
 The Planner did not check its own examples against the code, and nothing in the harness does, so a person had to notice. The sprint 2 contract also named a test file that does not exist, and the Monitor's note for sprint 1 says it built the endpoint when sprint 1 had no route. No check caught either. Two perfect first attempts also mean this run never shows a retry or an escalation; that path is proved by the tests, not by the run. The audit entry is best effort, because the event bus only logs a failing subscriber. Other weak spots I know about: the contract is not locked with a hash, and one file scored only 33% in mutation testing.
 
