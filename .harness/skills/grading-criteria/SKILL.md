@@ -18,7 +18,7 @@ description: The evaluation framework - four weighted dimensions, every check wi
    - below 75 => `FAIL`
 4. `FAIL` => the Generator retries with the feedback, at most **3 iterations** per sprint, then the run **escalates** to the developer.
 
-Worked example: all checks pass except `ARCH-05` (soft). Architecture has 6 checks: 35 x 5/6 = 29.2; the other dimensions are full (35 + 20 + 10); total **94.2 => PASS**. If instead `COR-04` (hard) fails, the verdict is **FAIL** although the score would still be 87.5.
+Worked example: all checks pass except `ARCH-05` (soft). Architecture has 6 checks: 35 x 5/6 = 29.2; the other dimensions are full (35 + 20 + 10); total **94.2 => PASS**. If instead `COR-04` (hard) fails, the verdict is **FAIL** although the score would still be 93.0.
 
 ## Dimensions and checks
 
