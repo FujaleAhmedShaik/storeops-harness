@@ -70,3 +70,9 @@ I decided not to take TypeScript to its new major version 7, even though it is n
 The upgrade also surfaced a test that was already flaky before any of this: `tests/server.test.ts`'s "force-closes connections" test could race ahead of the server and measure 0ms instead of waiting out the shutdown grace period, and the client socket in that test had no error handler, so a reset connection could crash the whole Jest worker. I wrote that fix myself, not Claude Code, following the same pattern as the rest of the file, since the timing assertion was easy to get subtly wrong and I wanted to reason through it by hand.
 
 When I run th Azure pre-flight script it printed garbled lines and false failures because of carriage return. Now it has been fixed with one small shared wrapper (`infra/scripts/_common.sh`)
+
+## 2026-10-13: writing the deployment note, the reflection and the design brief
+
+For `DEPLOYMENT.md`, `REFLECTION.md` and `DESIGN_BRIEF.md`, I told Claude Code what to put in them: what I had built, the decisions I had decided, and what I learned along the way (the deployment problems, the review of the harness, and the evidence I had collected). Claude Code then worded it in plain language and put it into the structure the brief asks for. So the content comes from my project and my decisions, and the wording of these first drafts is Claude Code's.
+
+The drafts only cover what has happened so far. The new endpoint, the real run results and the example sprint contract do not exist yet, so those parts are marked `TODO` and I will fill them in after the harness run. Before I submit, I will read each document and change anything that does not match what I think, especially the reasons in the design brief.
