@@ -102,3 +102,7 @@ After I replied APPROVED, the harness created the branch `harness/shift-handover
 The orchestrator session had to be picked up part-way: sprint 1 had passed and the Monitor had run, but nothing was committed, so it committed sprint 1 first and then did sprint 2. I ran `npm run verify` myself afterwards: 513 tests passed, statement coverage 99.66%, branch coverage 97.22%, no duplicate code, no vulnerabilities. One worry (an item reported as failed after it had been saved) turned out not to happen, because the event bus only logs a failing subscriber.
 
 Things I noticed and left alone: the sprint 2 contract named `tests/alerts/alerts.service.test.ts`, which does not exist, so the Generator put the subscriber tests in `tests/alerts/alerts.test.ts` and the Evaluator accepted it. The Monitor's note for sprint 1 says it implemented the endpoint, but sprint 1 had no route. Because both sprints passed first time, there is no FAIL-then-PASS history in `.harness/reviews/`.
+
+## 2026-10-13: merging, deploying and testing the new endpoint
+
+I pushed the branch and merged it as pull request #13. The pipeline (CI/CD run #25) passed and deployed the merge commit `c94646b` to the dev environment as revision `ca-storeops-api-dev--0000005`. The container registry now holds an image tagged with that same commit SHA.
