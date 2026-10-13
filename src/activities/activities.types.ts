@@ -19,6 +19,16 @@ export interface Task {
   readonly updatedAt: string;
 }
 
+export type BulkStatusItemResult =
+  | { readonly id: string; readonly outcome: 'UPDATED'; readonly from: TaskStatus; readonly to: TaskStatus }
+  | { readonly id: string; readonly outcome: 'FAILED'; readonly code: string };
+
+export interface BulkStatusResult {
+  readonly results: readonly BulkStatusItemResult[];
+  readonly updated: number;
+  readonly failed: number;
+}
+
 export interface StoreTaskStats {
   readonly storeId: string;
   readonly total: number;

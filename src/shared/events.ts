@@ -22,6 +22,17 @@ export interface AppEvents {
     readonly to: TaskStatus;
     readonly priority: TaskPriority;
   };
+  /** Emitted once per activity updated through a bulk status change; the audit entry for shift handover. */
+  'activity.bulk_status_updated': {
+    readonly taskId: string;
+    readonly title: string;
+    readonly storeId: string;
+    readonly assigneeId: string | null;
+    readonly createdBy: string;
+    readonly updatedBy: string;
+    readonly from: TaskStatus;
+    readonly to: TaskStatus;
+  };
   /** Emitted when a programme closes; the reports module reacts by generating a STORE_SUMMARY. */
   'programme.closed': {
     readonly projectId: string;

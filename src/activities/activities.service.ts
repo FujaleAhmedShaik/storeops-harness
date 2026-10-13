@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { canAccessStore, isStoreManager, isSupervisor } from '../shared/access';
 import { TASK_STATUSES, type AuthUser } from '../shared/domain';
-import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../shared/errors';
+import { AppError, ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../shared/errors';
 import type { EventBus } from '../shared/events';
-import { paginate, type Page } from '../shared/validate';
+import { paginate, parseInput, type Page } from '../shared/validate';
 import type { ProgrammeDirectory, StaffDirectory } from './activities.ports';
 import type { TaskRepository } from './activities.repository';
-import type { CreateTaskInput, ListTasksQuery, UpdateTaskInput } from './activities.schemas';
-import type { StoreTaskStats, Task, TaskStatus } from './activities.types';
+import { bulkUpdateStatusSchema, type BulkStatusInput, type CreateTaskInput, type ListTasksQuery, type UpdateTaskInput } from './activities.schemas';
+import type { BulkStatusItemResult, BulkStatusResult, StoreTaskStats, Task, TaskStatus } from './activities.types';
 
 /** Allowed status moves. DONE is terminal. */
 const ALLOWED_TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
@@ -111,6 +111,58 @@ export class ActivitiesService {
       });
     }
     return updated;
+  }
+
+  /**
+   * Moves up to 50 activities to DONE or BLOCKED in one call. Each item is judged independently against the
+   * existing store-scoping, authorisation and transition rules; a bad item never aborts the others.
+   */
+  async bulkUpdateStatus(user: AuthUser, input: BulkStatusInput): Promise<BulkStatusResult> {
+    const { items } = parseInput(bulkUpdateStatusSchema, input);
+    const results: BulkStatusItemResult[] = [];
+    let updated = 0;
+    let failed = 0;
+    for (const item of items) {
+      try {
+        const task = await this.getAccessible(user, item.id);
+        const isParticipant = task.createdBy === user.id || task.assigneeId === user.id;
+        if (!isParticipant && !isSupervisor(user)) {
+          throw new ForbiddenError('Only the creator, the assignee or a supervisor can update this activity');
+        }
+        this.assertTransition(task.status, item.status);
+        const from = task.status;
+        const saved = await this.tasks.save({ ...task, status: item.status, updatedAt: this.clock().toISOString() });
+        await this.bus.emit('activity.status_changed', {
+          taskId: saved.id,
+          title: saved.title,
+          storeId: saved.storeId,
+          assigneeId: saved.assigneeId,
+          from,
+          to: saved.status,
+          priority: saved.priority,
+        });
+        await this.bus.emit('activity.bulk_status_updated', {
+          taskId: saved.id,
+          title: saved.title,
+          storeId: saved.storeId,
+          assigneeId: saved.assigneeId,
+          createdBy: saved.createdBy,
+          updatedBy: user.id,
+          from,
+          to: saved.status,
+        });
+        results.push({ id: item.id, outcome: 'UPDATED', from, to: saved.status });
+        updated += 1;
+      } catch (error) {
+        if (error instanceof AppError) {
+          results.push({ id: item.id, outcome: 'FAILED', code: error.code });
+          failed += 1;
+        } else {
+          throw error;
+        }
+      }
+    }
+    return { results, updated, failed };
   }
 
   async delete(user: AuthUser, id: string): Promise<void> {

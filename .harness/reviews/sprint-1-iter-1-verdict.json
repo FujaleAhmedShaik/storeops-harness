@@ -1,0 +1,310 @@
+{
+  "verdict": "PASS",
+  "score": 100,
+  "hardGateFailures": [],
+  "failedChecks": [],
+  "dimensions": [
+    {
+      "id": "architecture",
+      "name": "Architecture and module boundaries",
+      "weight": 35,
+      "passed": 6,
+      "total": 6,
+      "score": 35
+    },
+    {
+      "id": "correctness",
+      "name": "Correctness and test quality",
+      "weight": 35,
+      "passed": 5,
+      "total": 5,
+      "score": 35
+    },
+    {
+      "id": "security_quality",
+      "name": "Security and code quality",
+      "weight": 20,
+      "passed": 6,
+      "total": 6,
+      "score": 20
+    },
+    {
+      "id": "governance",
+      "name": "Contract and change hygiene",
+      "weight": 10,
+      "passed": 4,
+      "total": 4,
+      "score": 10
+    }
+  ],
+  "checks": [
+    {
+      "id": "ARCH-01",
+      "kind": "auto",
+      "hard": true,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "npm run arch exited 0",
+        "",
+        "> storeops-harness@0.1.0 arch",
+        "> depcruise src --config .dependency-cruiser.cjs",
+        "",
+        "\r",
+        "✔ no dependency violations found (43 modules, 118 dependencies cruised)"
+      ]
+    },
+    {
+      "id": "ARCH-02",
+      "kind": "auto",
+      "hard": true,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "no raw Error throws or Error subclasses in 43 source file(s)"
+      ]
+    },
+    {
+      "id": "ARCH-03",
+      "kind": "auto",
+      "hard": true,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "checked 1 reports port file(s): all methods are reads"
+      ]
+    },
+    {
+      "id": "ARCH-04",
+      "kind": "llm",
+      "hard": true,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "src/activities/activities.service.ts:135 and :144 emit 'activity.status_changed' and 'activity.bulk_status_updated' via bus.emit; no direct call into src/alerts/ or any sibling module",
+        "'activity.status_changed' already has a subscriber at src/alerts/alerts.service.ts:35",
+        "'activity.bulk_status_updated' is typed in src/shared/events.ts:26-35; sprint-2-contract.md:15 explicitly scopes its subscriber (alerts) to sprint 2, matching the pre-existing baseline pattern where 'programme.closed' (src/shared/events.ts:37) also has a subscriber (src/reports/reports.service.ts:42) added before any producer existed"
+      ]
+    },
+    {
+      "id": "ARCH-05",
+      "kind": "llm",
+      "hard": false,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "Automated changeSummary shows no routes changed this sprint (sprint-1-contract.md:26 'no route'); only activities.schemas.ts, activities.service.ts, activities.types.ts and shared/events.ts changed",
+        "bulkUpdateStatus (activities.service.ts:120-166) holds all rules (access, authorisation, transition, persistence, events); no route exists yet to violate parse->call->respond"
+      ]
+    },
+    {
+      "id": "ARCH-06",
+      "kind": "llm",
+      "hard": false,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "New event 'activity.bulk_status_updated' is typed in src/shared/events.ts:26-35 before use in activities.service.ts:144",
+        "No new cross-module read/port added this sprint (changeSummary shows no ports/wiring kind), so there is nothing to wire in src/app.ts"
+      ]
+    },
+    {
+      "id": "COR-01",
+      "kind": "auto",
+      "hard": true,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "npm run typecheck exited 0",
+        "",
+        "> storeops-harness@0.1.0 typecheck",
+        "> tsc --noEmit"
+      ]
+    },
+    {
+      "id": "COR-02",
+      "kind": "auto",
+      "hard": true,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "503 tests, 0 failed test(s)/suite(s)"
+      ]
+    },
+    {
+      "id": "COR-03",
+      "kind": "auto",
+      "hard": true,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "jest exited 0",
+        "=============================== Coverage summary ===============================",
+        "Statements   : 99.65% ( 878/881 )",
+        "Branches     : 97.21% ( 419/431 )",
+        "Functions    : 100% ( 239/239 )",
+        "Lines        : 99.63% ( 816/819 )"
+      ]
+    },
+    {
+      "id": "COR-04",
+      "kind": "llm",
+      "hard": true,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "tests/activities/activities.service.bulk-status.test.ts:35 'S1-AC1' asserts stored status for taskA/taskB and counts both event names",
+        "tests/activities/activities.service.bulk-status.test.ts:66 'S1-AC2' asserts result.code 'NOT_FOUND', unchanged status and zero emitted events",
+        "tests/activities/activities.service.bulk-status.test.ts:79 'S1-AC3' asserts code 'FORBIDDEN'",
+        "tests/activities/activities.service.bulk-status.test.ts:92 'S1-AC4' asserts code 'INVALID_STATUS_TRANSITION'",
+        "tests/activities/activities.service.bulk-status.test.ts:105 'S1-AC5' asserts rejects(ValidationError) and zero events",
+        "tests/activities/activities.service.bulk-status.test.ts:113 'S1-AC6' asserts mixed outcomes and per-event counts",
+        "tests/activities/activities.service.bulk-status.test.ts:136 'S1-AC7' asserts schema.safeParse(...).success === false",
+        "tests/activities/activities.service.bulk-status.test.ts:141 'S1-AC8' asserts code 'INVALID_STATUS_TRANSITION' for TODO->DONE"
+      ]
+    },
+    {
+      "id": "COR-05",
+      "kind": "llm",
+      "hard": false,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "Traced each AC to activities.service.ts:120-166: getAccessible (line 127) implements store scoping (AC2), isSupervisor/isParticipant check (line 128-131) implements authorisation (AC3), assertTransition (line 132, table at 13-18) implements the transition rules (AC4, AC8), parseInput+bulkUpdateStatusSchema (line 121, schemas.ts:35-40) implements the 50-item cap and enum restriction (AC5, AC7), per-item try/catch with AppError narrowing (line 156-163) implements independent per-item failure (AC6)"
+      ]
+    },
+    {
+      "id": "SEC-01",
+      "kind": "auto",
+      "hard": true,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "npm run lint exited 0",
+        "",
+        "> storeops-harness@0.1.0 lint",
+        "> eslint . --max-warnings 0"
+      ]
+    },
+    {
+      "id": "SEC-02",
+      "kind": "auto",
+      "hard": true,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "npm run audit:deps exited 0",
+        "",
+        "> storeops-harness@0.1.0 audit:deps",
+        "> npm audit --audit-level=high --omit=dev",
+        "",
+        "found 0 vulnerabilities"
+      ]
+    },
+    {
+      "id": "SEC-03",
+      "kind": "auto",
+      "hard": false,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "npm run dup exited 0",
+        "",
+        "> storeops-harness@0.1.0 dup",
+        "> jscpd",
+        "",
+        "\u001b[90mNo duplicates found.\u001b[39m",
+        "\u001b[90m┌────────────┬────────────────┬─────────────┬──────────────┬──────────────┬──────────────────┬───────────────────┐\u001b[39m",
+        "\u001b[90m│\u001b[39m\u001b[31m Format     \u001b[39m\u001b[90m│\u001b[39m\u001b[31m Files analyzed \u001b[39m\u001b[90m│\u001b[39m\u001b[31m Total lines \u001b[39m\u001b[90m│\u001b[39m\u001b[31m Total tokens \u001b[39m\u001b[90m│\u001b[39m\u001b[31m Clones found \u001b[39m\u001b[90m│\u001b[39m\u001b[31m Duplicated lines \u001b[39m\u001b[90m│\u001b[39m\u001b[31m Duplicated tokens \u001b[39m\u001b[90m│\u001b[39m",
+        "\u001b[90m├────────────┼────────────────┼─────────────┼──────────────┼──────────────┼──────────────────┼───────────────────┤\u001b[39m",
+        "\u001b[90m│\u001b[39m typescript \u001b[90m│\u001b[39m 40             \u001b[90m│\u001b[39m 1738        \u001b[90m│\u001b[39m 12382        \u001b[90m│\u001b[39m 0            \u001b[90m│\u001b[39m 0 (0.00%)        \u001b[90m│\u001b[39m 0 (0.00%)         \u001b[90m│\u001b[39m",
+        "\u001b[90m├────────────┼────────────────┼─────────────┼──────────────┼──────────────┼──────────────────┼───────────────────┤\u001b[39m",
+        "\u001b[90m│\u001b[39m \u001b[1mTotal:\u001b[22m     \u001b[90m│\u001b[39m 40             \u001b[90m│\u001b[39m 1738        \u001b[90m│\u001b[39m 12382        \u001b[90m│\u001b[39m 0            \u001b[90m│\u001b[39m 0 (0.00%)        \u001b[90m│\u001b[39m 0 (0.00%)         \u001b[90m│\u001b[39m",
+        "\u001b[90m└────────────┴────────────────┴─────────────┴──────────────┴──────────────┴──────────────────┴───────────────────┘\u001b[39m",
+        "\u001b[90mFound 0 clones.\u001b[39m",
+        "\u001b[32mJSON report saved to ./reports/jscpd\\jscpd-report.json\u001b[39m",
+        "\u001b[90mtime: 15.427ms\u001b[39m",
+        "Using config from .jscpd.json"
+      ]
+    },
+    {
+      "id": "SEC-04",
+      "kind": "llm",
+      "hard": true,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "src/activities/activities.schemas.ts:35-40 bulkUpdateStatusSchema uses z.strictObject for both the outer object and each item, item.id is z.uuid(), status restricted to z.enum(['DONE','BLOCKED'])",
+        "No list/collection endpoint added this sprint, so paginationShape does not apply (unchanged listTasksQuerySchema already uses it at schemas.ts:32)"
+      ]
+    },
+    {
+      "id": "SEC-05",
+      "kind": "llm",
+      "hard": false,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "tests/activities/activities.service.bulk-status.test.ts:66 'S1-AC2' proves a cross-store activity (store-002) returns NOT_FOUND rather than leaking existence, via getAccessible (activities.service.ts:195-201)",
+        "tests/activities/activities.service.bulk-status.test.ts:79 'S1-AC3' proves the non-creator/non-assignee/non-supervisor role rule (activities.service.ts:128-131) is enforced and tested; the supervisor-bypass test at line 154 tests the positive branch of the same rule"
+      ]
+    },
+    {
+      "id": "SEC-06",
+      "kind": "llm",
+      "hard": false,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "No logging statements added in activities.service.ts; error results expose only the AppError 'code' string (activities.service.ts:158), never a stack, credential or internal id beyond the activity id already visible to the caller"
+      ]
+    },
+    {
+      "id": "GOV-01",
+      "kind": "auto",
+      "hard": true,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "5 changed file(s), all within scope"
+      ]
+    },
+    {
+      "id": "GOV-02",
+      "kind": "auto",
+      "hard": false,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "OpenAPI contract consistent with route changes"
+      ]
+    },
+    {
+      "id": "GOV-03",
+      "kind": "llm",
+      "hard": false,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        ".harness/output/generator-summary.md lines 7-17 list all 8 ACs each with a file:line test reference and asserted outcome",
+        "generator-summary.md lines 19-26 list every changed file with its layer",
+        "generator-summary.md lines 34-35 'Known gaps: None' with honest justification that route/wiring/subscriber are sprint 2 scope"
+      ]
+    },
+    {
+      "id": "GOV-04",
+      "kind": "llm",
+      "hard": false,
+      "result": "PASS",
+      "reason": null,
+      "evidence": [
+        "git diff HEAD on the 4 changed src files contains no TODO/FIXME/commented-out code/console.log (verified by grep over the diff)",
+        "No unused exports: BulkStatusInput, BulkStatusItemResult, BulkStatusResult are all consumed by activities.service.ts"
+      ]
+    }
+  ],
+  "unknownResults": [],
+  "sprint": 1,
+  "iteration": 1,
+  "generatedAt": "2026-10-13T16:15:07.079Z"
+}
