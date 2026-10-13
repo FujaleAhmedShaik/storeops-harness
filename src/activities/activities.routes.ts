@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler, currentUser } from '../shared/http';
 import { idParamSchema, parseInput } from '../shared/validate';
-import { createTaskSchema, listTasksQuerySchema, updateTaskSchema } from './activities.schemas';
+import { bulkUpdateStatusSchema, createTaskSchema, listTasksQuerySchema, updateTaskSchema } from './activities.schemas';
 import type { ActivitiesService } from './activities.service';
 
 export function createActivitiesRouter(service: ActivitiesService): Router {
@@ -18,6 +18,14 @@ export function createActivitiesRouter(service: ActivitiesService): Router {
     '/',
     asyncHandler(async (req, res) => {
       res.status(201).json(await service.create(currentUser(req), parseInput(createTaskSchema, req.body)));
+    }),
+  );
+
+  // Fixed path: must stay before the '/:id' routes so "bulk-status" is not parsed as an id.
+  router.patch(
+    '/bulk-status',
+    asyncHandler(async (req, res) => {
+      res.json(await service.bulkUpdateStatus(currentUser(req), parseInput(bulkUpdateStatusSchema, req.body)));
     }),
   );
 

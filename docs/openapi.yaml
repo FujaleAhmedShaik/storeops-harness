@@ -71,6 +71,23 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+  /api/activities/bulk-status:
+    patch:
+      summary: Move up to 50 activities to DONE or BLOCKED in one request (shift handover)
+      description: Each item is judged independently; a failing item is reported in the results and never aborts the others.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BulkStatusRequest" }
+      responses:
+        "200":
+          description: Per-item outcomes with counts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BulkStatusResult" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
   /api/activities/{id}:
     parameters:
       - { $ref: "#/components/parameters/Id" }
@@ -256,6 +273,38 @@ components:
         priority: { $ref: "#/components/schemas/TaskPriority" }
         category: { $ref: "#/components/schemas/TaskCategory" }
         assigneeId: { type: string, format: uuid, nullable: true }
+    BulkStatusRequest:
+      type: object
+      required: [items]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: object
+            required: [id, status]
+            additionalProperties: false
+            properties:
+              id: { type: string, format: uuid }
+              status: { type: string, enum: [DONE, BLOCKED] }
+    BulkStatusResult:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            required: [id, outcome]
+            properties:
+              id: { type: string, format: uuid }
+              outcome: { type: string, enum: [UPDATED, FAILED] }
+              from: { $ref: "#/components/schemas/TaskStatus" }
+              to: { $ref: "#/components/schemas/TaskStatus" }
+              code: { type: string, example: NOT_FOUND }
+        updated: { type: integer }
+        failed: { type: integer }
     TaskPage:
       type: object
       properties:

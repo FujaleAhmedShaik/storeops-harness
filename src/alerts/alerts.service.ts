@@ -34,6 +34,18 @@ export class AlertsService {
   registerEventHandlers(bus: EventBus): void {
     bus.on('activity.status_changed', async (event) => this.onStatusChanged(event));
     bus.on('activity.assigned', async (event) => this.onAssigned(event));
+    bus.on('activity.bulk_status_updated', async (event) => this.onBulkStatusUpdated(event));
+  }
+
+  /** Audit entry for a shift handover: tells the assignee (or the creator when unassigned) what changed. */
+  private async onBulkStatusUpdated(event: AppEvents['activity.bulk_status_updated']): Promise<void> {
+    await this.create({
+      userId: event.assigneeId ?? event.createdBy,
+      type: 'SHIFT_HANDOVER',
+      title: 'Activity updated at shift handover',
+      message: `"${event.title}" was moved from ${event.from} to ${event.to}.`,
+      relatedId: event.taskId,
+    });
   }
 
   /** A HIGH/CRITICAL activity becoming BLOCKED escalates to every store manager of that store. */
